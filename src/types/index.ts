@@ -4,6 +4,9 @@ export interface Profile {
   full_name: string | null
   avatar_url: string | null
   badge: 'top_contributor' | null
+  role: 'user' | 'admin' | 'super_admin'
+  is_blocked: boolean
+  proposal_count: number
   created_at: string
 }
 

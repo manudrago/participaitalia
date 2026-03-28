@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
-import { Menu, X, Vote, LogOut, User as UserIcon, PlusCircle } from 'lucide-react'
+import { Menu, X, Vote, LogOut, User as UserIcon, PlusCircle, Shield } from 'lucide-react'
+import { Profile } from '@/types'
 
 export default function Header() {
   const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const router = useRouter()
@@ -16,18 +18,43 @@ export default function Header() {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user)
+      if (data.user) {
+        fetchProfile(data.user.id)
+      }
+    })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null)
+      if (session?.user) {
+        fetchProfile(session.user.id)
+      } else {
+        setProfile(null)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  async function fetchProfile(userId: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    if (data) setProfile(data as Profile)
+  }
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/')
     setUserMenuOpen(false)
   }
+
+  const displayName = profile
+    ? (profile.full_name || profile.username)
+    : user?.email?.split('@')[0] ?? ''
+
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
 
   const navLinks = [
     { href: '/proposte', label: 'Proposte' },
@@ -74,10 +101,18 @@ export default function Header() {
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                     <UserIcon className="w-4 h-4 text-blue-600" />
                   </div>
-                  <span className="text-sm font-medium text-gray-700">{user.email?.split('@')[0]}</span>
+                  <span className="text-sm font-medium text-gray-700">{displayName}</span>
                 </button>
                 {userMenuOpen && (
                   <div className="absolute right-0 top-12 bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-48">
+                    <Link
+                      href="/profilo"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <UserIcon className="w-4 h-4" />
+                      Il mio profilo
+                    </Link>
                     <Link
                       href="/proposte/crea"
                       onClick={() => setUserMenuOpen(false)}
@@ -86,6 +121,16 @@ export default function Header() {
                       <PlusCircle className="w-4 h-4" />
                       Nuova proposta
                     </Link>
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50"
+                      >
+                        <Shield className="w-4 h-4" />
+                        Pannello Admin
+                      </Link>
+                    )}
                     <hr className="my-1 border-gray-100" />
                     <button
                       onClick={handleSignOut}
@@ -130,13 +175,33 @@ export default function Header() {
           ))}
           <div className="pt-2 border-t border-gray-100 mt-2">
             {user ? (
-              <button
-                onClick={handleSignOut}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 w-full"
-              >
-                <LogOut className="w-4 h-4" />
-                Esci
-              </button>
+              <>
+                <Link
+                  href="/profilo"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-xl"
+                >
+                  <UserIcon className="w-4 h-4" />
+                  Il mio profilo
+                </Link>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 rounded-xl"
+                  >
+                    <Shield className="w-4 h-4" />
+                    Pannello Admin
+                  </Link>
+                )}
+                <button
+                  onClick={handleSignOut}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 w-full"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Esci
+                </button>
+              </>
             ) : (
               <div className="flex gap-2">
                 <Link href="/accedi" className="btn-ghost text-sm flex-1 text-center" onClick={() => setMenuOpen(false)}>Accedi</Link>
